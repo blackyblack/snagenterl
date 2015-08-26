@@ -1,0 +1,16 @@
+{application, echodemo,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {modules, [
+             echodemo_app
+            ]},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  sasl
+                 ]},
+  {mod, {echodemo_app, []}},
+  {env, []}
+ ]}.

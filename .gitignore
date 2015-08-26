@@ -1,0 +1,15 @@
+bin/
+ebin/
+*.pair
+*.lib
+*.exp
+*.bin
+*.obj
+lib/*
+!lib/**/info
+priv/
+classes/*
+bin/*
+c_src_tmp/*.dll
+*.dump
+log/*
