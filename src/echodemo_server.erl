@@ -28,6 +28,7 @@ main([PermArg, DaemonIdArg, JsonArgs, ParentIdArg]) ->
   {DaemonId, _} = string:to_integer(DaemonIdArg),
   {ParentId, _} = string:to_integer(ParentIdArg),
   error_logger:info_msg("Args: Permanent = ~p, Daemon = ~p, Parent = ~p~n", [PermFlag, DaemonId, ParentId]),
+  error_logger:info_msg("JSON: ~p~n", [list_to_binary(JsonArgs)]),
   MyId = 999,
   JsonData = jsx:decode(list_to_binary(JsonArgs), [return_maps]),
   error_logger:info_msg("Json: ~p~n", [JsonData]),
@@ -41,7 +42,7 @@ main([PermArg, DaemonIdArg, JsonArgs, ParentIdArg]) ->
     nxtaddr=binary_to_integer(maps:get(<<"NXT">>, JsonData, <<"0">>)),
     servicenxtaddr=binary_to_integer(maps:get(<<"serviceNXT">>, JsonData, <<"0">>)),
     myid = MyId,
-    connectaddr = "ipc://SuperNET",
+    connectaddr = "ipc://SuperNET.agents",
     bindaddr = string:concat("ipc://", integer_to_list(DaemonId)),
     timeout = maps:get(<<"timeout">>, JsonData, 0),
     sleepmillis = maps:get(<<"sleepmillis">>, JsonData, 100)}}.
