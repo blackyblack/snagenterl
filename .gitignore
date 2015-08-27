@@ -13,3 +13,4 @@ bin/*
 c_src_tmp/*.dll
 *.dump
 log/*
+*.pdb

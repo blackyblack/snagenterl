@@ -1,1 +1,0 @@
-vcvars32.bat && cl.exe enm_utils.c enm_opts.c enm_drv.c /LD /MT /DNN_NO_EXPORTS /I. /I./erl /Feenm_drv.dll /link /NODEFAULTLIB:libcmt.lib nanomsg.lib ei.lib erl_interface.lib ws2_32.lib Advapi32.lib Mswsock.lib

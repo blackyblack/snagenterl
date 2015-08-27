@@ -1,0 +1,1 @@
+vcvars32.bat && cl.exe %*
