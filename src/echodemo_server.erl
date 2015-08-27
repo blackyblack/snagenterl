@@ -19,7 +19,8 @@ snetreply(Data, State) ->
   Socket = State#state.snetsocket,
   Numsent = State#state.numsent,
   ExtData = string:concat(Data, [0]),
-  ok = enm:send(Socket, ExtData),
+  Ret = enm:send(Socket, ExtData),
+  error_logger:info_msg("Send ret: ~p~n", [Ret]),
   NewState = State#state{numsent = Numsent + 1},
   {ok, NewState}.
 
@@ -29,8 +30,11 @@ main([PermArg, DaemonIdArg, JsonArgs, ParentIdArg]) ->
   {ParentId, _} = string:to_integer(ParentIdArg),
   error_logger:info_msg("Args: Permanent = ~p, Daemon = ~p, Parent = ~p~n", [PermFlag, DaemonId, ParentId]),
   error_logger:info_msg("JSON: ~p~n", [list_to_binary(JsonArgs)]),
+  %% expect a stringified version of JSON
+  {ok, [{string,_,JsonArgsParsed}],_}=erl_scan:string(JsonArgs),
+  error_logger:info_msg("JSONP: ~s~n", [list_to_binary(JsonArgsParsed)]),
   MyId = 999,
-  JsonData = jsx:decode(list_to_binary(JsonArgs), [return_maps]),
+  JsonData = jsx:decode(list_to_binary(JsonArgsParsed), [return_maps]),
   error_logger:info_msg("Json: ~p~n", [JsonData]),
   {ok, #state{
     permanentflag = PermFlag,
@@ -59,7 +63,10 @@ init([]) ->
 
   %% TODO: create register JSON and send to Push socket
   NewState = State#state{snetsocket = Socket1, agentsocket = Socket2},
-  snetreply("test", NewState).
+  Reply = io_lib:format(
+    "{\"daemonid\":\"~p\",\"authmethods\":[\"echo\"],\"pluginrequest\":\"SuperNET\",\"requestType\":\"register\",\"methods\":[\"echo\"],\"permanentflag\":1,\"NXT\":\"6568026812579800361\",\"sent\":0,\"endpoint\":\"ipc:\/\/~p\",\"recv\":0,\"myid\":\"6053471078337304154\",\"plugin\":\"echodemo\",\"pubmethods\":[\"echo\"],\"allowremote\":1,\"millis\":1440700333161,\"sleepmillis\":100}",
+    [State#state.daemonid, State#state.daemonid]),
+  snetreply(Reply, NewState).
 
 handle_call(Request, From, State) ->
     error_logger:info_msg("echodemo call ~p from ~p~n", [Request, From]),
