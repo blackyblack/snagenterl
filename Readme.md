@@ -3,6 +3,7 @@ SuperNet erlang agent
 How to build
 
 Install rebar: https://github.com/basho/rebar
+
 Change dict() to dict:dict() in rebar_config.erl in case of build errors.
 
 Linux:
