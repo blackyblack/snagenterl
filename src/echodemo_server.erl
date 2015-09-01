@@ -9,10 +9,14 @@
 
 -record(state, {permanentflag, daemonid, ppid, name, numsent, numrecv, nxtaddr, servicenxtaddr, myid,
                 connectaddr, bindaddr, timeout, sleepmillis,
-                snetsocket, agentsocket}).
+                snetsocket, agentsocket, allowremote, registeredflag}).
 
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+get_timestamp() ->
+  {Mega, Sec, Micro} = os:timestamp(),
+  (Mega*1000000 + Sec)*1000 + round(Micro/1000).
 
 snetreply(Data, State) ->
   error_logger:info_msg("Send: ~p~n", [Data]),
@@ -49,7 +53,9 @@ main([PermArg, DaemonIdArg, JsonArgs, ParentIdArg]) ->
     connectaddr = "ipc://SuperNET.agents",
     bindaddr = string:concat("ipc://", integer_to_list(DaemonId)),
     timeout = maps:get(<<"timeout">>, JsonData, 0),
-    sleepmillis = maps:get(<<"sleepmillis">>, JsonData, 100)}}.
+    sleepmillis = maps:get(<<"sleepmillis">>, JsonData, 100),
+    allowremote = 1,
+    registeredflag = 0}}.
 
 %% gen_server callbacks
 
@@ -63,10 +69,25 @@ init([]) ->
 
   %% TODO: create register JSON and send to Push socket
   NewState = State#state{snetsocket = Socket1, agentsocket = Socket2},
-  Reply = io_lib:format(
-    "{\"daemonid\":\"~p\",\"authmethods\":[\"echo\"],\"pluginrequest\":\"SuperNET\",\"requestType\":\"register\",\"methods\":[\"echo\"],\"permanentflag\":1,\"NXT\":\"6568026812579800361\",\"sent\":0,\"endpoint\":\"ipc:\/\/~p\",\"recv\":0,\"myid\":\"6053471078337304154\",\"plugin\":\"echodemo\",\"pubmethods\":[\"echo\"],\"allowremote\":1,\"millis\":1440700333161,\"sleepmillis\":100}",
-    [State#state.daemonid, State#state.daemonid]),
-  snetreply(Reply, NewState).
+  RegData = #{
+    <<"daemonid">> => list_to_binary(integer_to_list(State#state.daemonid)),
+    <<"methods">> => [<<"echo">>],
+    <<"authmethods">> => [<<"echo">>],
+    <<"pubmethods">> => [<<"echo">>],
+    <<"pluginrequest">> => <<"SuperNET">>,
+    <<"requestType">> => <<"register">>,
+    <<"plugin">> => list_to_binary(State#state.name),
+    <<"permanentflag">> => State#state.permanentflag,
+    <<"sent">> => State#state.numsent,
+    <<"recv">> => State#state.numrecv,
+    <<"NXT">> => list_to_binary(integer_to_list(State#state.nxtaddr)),
+    <<"endpoint">> => list_to_binary(State#state.bindaddr),
+    <<"myid">> => list_to_binary(integer_to_list(State#state.myid)),
+    <<"allowremote">> => State#state.allowremote,
+    <<"millis">> => get_timestamp(),
+    <<"sleepmillis">> => State#state.sleepmillis
+  },
+  snetreply(jsx:encode(RegData), binary_to_list(NewState)).
 
 handle_call(Request, From, State) ->
     error_logger:info_msg("echodemo call ~p from ~p~n", [Request, From]),
