@@ -37,7 +37,8 @@ main([PermArg, DaemonIdArg, JsonArgs, ParentIdArg]) ->
   %% expect a stringified version of JSON
   {ok, [{string,_,JsonArgsParsed}],_}=erl_scan:string(JsonArgs),
   error_logger:info_msg("JSONP: ~s~n", [list_to_binary(JsonArgsParsed)]),
-  MyId = 999,
+  RandomBytes = procutils:randombytes(8),
+  MyId = binary:decode_unsigned(RandomBytes),
   JsonData = jsx:decode(list_to_binary(JsonArgsParsed), [return_maps]),
   error_logger:info_msg("Json: ~p~n", [JsonData]),
   {ok, #state{
