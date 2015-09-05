@@ -39,7 +39,9 @@ start(_StartType, _StartArgs) ->
   Args = application:get_env(echodemo, args, undefined),
   error_logger:info_msg("Args = ~p~n", [Args]),
   enm:start_link(),
-  echodemo_sup:start_link().
+  Ret = echodemo_sup:start_link(),
+  error_logger:info_msg("start_link = ~p~n", [Ret]),
+  Ret.
 
 stop(_State) ->
   enm:stop(),

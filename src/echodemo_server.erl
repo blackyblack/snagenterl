@@ -25,6 +25,7 @@ snetreply(Data, State) ->
   ExtData = string:concat(Data, [0]),
   Ret = enm:send(Socket, ExtData),
   error_logger:info_msg("Send ret: ~p~n", [Ret]),
+  timer:sleep(1000),
   NewState = State#state{numsent = Numsent + 1},
   {ok, NewState}.
 
@@ -64,7 +65,7 @@ init([]) ->
   {ok, State} = main(application:get_env(echodemo, args, undefined)),
   error_logger:info_msg("State: ~p~n", [State]),
   {ok, Socket1} = enm:push([{connect, State#state.connectaddr}, list]),
-  {ok, Socket2} = enm:bus([{bind, State#state.bindaddr}, {active, false}]),
+  {ok, Socket2} = enm:bus([{bind, State#state.bindaddr}, {active, true}]),
   error_logger:info_msg("Connected on ~p~n", [State#state.connectaddr]),
   error_logger:info_msg("Listen on ~p~n", [State#state.bindaddr]),
 
@@ -88,7 +89,9 @@ init([]) ->
     <<"millis">> => get_timestamp(),
     <<"sleepmillis">> => State#state.sleepmillis
   },
-  snetreply(jsx:encode(RegData), binary_to_list(NewState)).
+  JsonStr = jsx:encode(RegData),
+  error_logger:info_msg("Register JSON ~p~n", [JsonStr]),
+  snetreply(binary_to_list(JsonStr), NewState).
 
 handle_call(Request, From, State) ->
     error_logger:info_msg("echodemo call ~p from ~p~n", [Request, From]),

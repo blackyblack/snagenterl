@@ -20,7 +20,7 @@
 //
 // -------------------------------------------------------------------
 
-//#include <sys/resource.h>
+#include <sys/resource.h>
 #include <errno.h>
 #include <string.h>
 #include <assert.h>
@@ -166,11 +166,11 @@ enm_add_waiter(EnmData* d, erlang_ref* ref)
 static int
 enm_init(void)
 {
-    /*struct rlimit rl;
+    struct rlimit rl;
 
     if (getrlimit(RLIMIT_NOFILE, &rl) < 0)
-        return -1;*/
-    enm_sockets = (EnmData**)driver_alloc(/*rl.rlim_cur*/4 * sizeof(EnmData*));
+        return -1;
+    enm_sockets = (EnmData**)driver_alloc(rl.rlim_cur/*10*/ * sizeof(EnmData*));
     if (enm_sockets == 0)
         return -1;
     return 0;
