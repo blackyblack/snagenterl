@@ -116,11 +116,10 @@ handle_info(isalive, State) ->
 handle_info({nnbus, _Socket, DataRaw}, State) ->
     RawSize = size(DataRaw),
     Data = binary:part(DataRaw, 0, RawSize - 1),
-    error_logger:info_msg("nn_recv ~s~n", [binary_to_list(Data)]),
+    error_logger:info_msg("Received ~s~n", [binary_to_list(Data)]),
     case jsx:is_json(Data) of
         true ->
             Json = jsx:decode(Data, [return_maps]),
-            error_logger:info_msg("json = ~p~n", [Json]),
             {JsonReq, Token} = split_json_array(Json),
             if
                 Token /= nil ->
