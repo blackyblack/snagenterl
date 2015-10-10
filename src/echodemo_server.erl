@@ -4,8 +4,7 @@
 
 -export([start_link/0]).
 
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(state, {permanentflag, daemonid, ppid, name, numsent, numrecv, nxtaddr, servicenxtaddr, myid,
                 connectaddr, bindaddr, timeout, sleepmillis,
@@ -16,8 +15,15 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 get_timestamp() ->
-  {Mega, Sec, Micro} = os:timestamp(),
-  (Mega*1000000 + Sec)*1000 + round(Micro/1000).
+    {Mega, Sec, Micro} = os:timestamp(),
+    (Mega*1000000 + Sec)*1000 + round(Micro/1000).
+
+bit_is_set(X, {Result, Index, Bitset}) ->
+    Check = 1 bsl Index,
+    if
+        Check band Bitset /= 0 -> {Result, Index + 1, Bitset};
+        true -> {Result ++ [X], Index + 1, Bitset}
+    end.
 
 snetreply(Data, State) ->
   error_logger:info_msg("Send: ~p~n", [Data]),
@@ -60,26 +66,32 @@ create_agent([MainPath, PermArg, DaemonIdArg, JsonArgs, ParentIdArg]) ->
     allowremote = 1,
     registeredflag = 0},
 
-  agent_register(State, JsonData).
+  %% add default settings for the agent
+  {ok, _Answer, NewState} = agent_process_register(State, JsonData),
+  %% get disabled methods mask
+  agent_register(NewState, JsonData).
 
 %% gen_server callbacks
 
 init([]) ->
-  {ok, State, _DisabledMask} = create_agent(application:get_env(echodemo, args, undefined)),
+  {ok, State, DisabledMask} = create_agent(application:get_env(echodemo, args, undefined)),
   error_logger:info_msg("State: ~p~n", [State]),
   {ok, Socket1} = enm:push([{connect, State#state.connectaddr}, list]),
   {ok, Socket2} = enm:bus([{bind, State#state.bindaddr}, {active, true}]),
   error_logger:info_msg("Connected on ~s~n", [State#state.connectaddr]),
   error_logger:info_msg("Listen on ~s~n", [State#state.bindaddr]),
 
-  Methods = agent_methods(),
-  AuthMethods = agent_auth_methods(),
-  PubMethods = agent_pub_methods(),
+  MethodsRaw = agent_methods(),
+  AuthMethodsRaw = agent_auth_methods(),
+  PubMethodsRaw = agent_pub_methods(),
 
-  %% TODO: create register JSON and send to Push socket
+  %% filter based on disabled mask
+  {Methods, _, _} = lists:foldl(fun(X, Acc) -> bit_is_set(X, Acc) end, {[], 0, DisabledMask}, MethodsRaw),
+  {AuthMethods, _, _} = lists:foldl(fun(X, Acc) -> bit_is_set(X, Acc) end, {[], 0, DisabledMask}, AuthMethodsRaw),
+  {PubMethods, _, _} = lists:foldl(fun(X, Acc) -> bit_is_set(X, Acc) end, {[], 0, DisabledMask}, PubMethodsRaw),
+
   NewState = State#state{snetsocket = Socket1, agentsocket = Socket2},
   RegData = #{
-    <<"daemonid">> => list_to_binary(integer_to_list(State#state.daemonid)),
     <<"methods">> => Methods,
     <<"authmethods">> => AuthMethods,
     <<"pubmethods">> => PubMethods,
@@ -89,16 +101,13 @@ init([]) ->
     <<"permanentflag">> => State#state.permanentflag,
     <<"sent">> => State#state.numsent,
     <<"recv">> => State#state.numrecv,
-    <<"NXT">> => list_to_binary(integer_to_list(State#state.nxtaddr)),
-    <<"serviceNXT">> => list_to_binary(integer_to_list(State#state.servicenxtaddr)),
     <<"endpoint">> => list_to_binary(State#state.bindaddr),
-    <<"myid">> => list_to_binary(integer_to_list(State#state.myid)),
-    <<"allowremote">> => State#state.allowremote,
     <<"millis">> => get_timestamp(),
     <<"sleepmillis">> => State#state.sleepmillis
   },
-  JsonStr = jsx:encode(RegData),
-  {ok, NewState2} = snetreply(binary_to_list(JsonStr), NewState),
+  {ok, NewState2} = reply_with_stdfields(RegData, NewState),
+
+  %% start periodical timer to check parent is alive
   Timer = erlang:send_after(State#state.sleepmillis, self(), isalive, []),
   NewState3 = NewState2#state{alivetimer = Timer},
   {ok, NewState3}.
@@ -120,7 +129,7 @@ handle_info(isalive, State) ->
     Alive = procutils:os_pingpid(State#state.ppid),
     if
         Alive /= 0 ->
-	    error_logger:info_msg("Parent ~p died. Terminating.~n", [State#state.ppid]),
+            error_logger:info_msg("Parent ~p died. Terminating.~n", [State#state.ppid]),
             {stop, normal, State};
         true ->
             {ok, NewState} = agent_idle(State),
@@ -154,8 +163,10 @@ handle_info({nnbus, _Socket, DataRaw}, State) ->
             if
                 (PluginStr == State#state.name) or (AgentStr == State#state.name) or
                 (DestPluginStr == State#state.name) or (DestAgentStr == State#state.name) ->
-                    Answer = agent_process_req(JsonReq, State),
-                    process_reply(Answer, JsonReq, TagStr);
+                    Reply = agent_process_req(JsonReq, State),
+                    Answer = process_reply(Reply, JsonReq, TagStr),
+                    {ok, NewState} = reply_with_stdfields(Answer, State),
+                    {noreply, NewState};
                 true -> {noreply, State}
             end;
         false ->
@@ -197,33 +208,14 @@ reply_with_stdfields(Reply, State) ->
     snetreply(binary_to_list(JsonStr), State).
 
 %% process good and bad responses from agent
-process_reply({ok, Data, State}, _Req, nil) ->
-    {ok, NewState} = reply_with_stdfields(Data, State),
-    {noreply, NewState};
+process_reply({ok, Data, _State}, _Req, nil) -> Data;
+process_reply({ok, Data, _State}, _Req, Tag) -> Data#{<<"tag">> => Tag};
+process_reply({error, _Reason, _State}, _Req, nil) -> #{<<"result">> => <<"no response">>};
+process_reply({error, _Reason, _State}, _Req, Tag) -> #{<<"result">> => <<"no response">>, <<"tag">> => Tag}.
 
-process_reply({ok, Data, State}, _Req, Tag) ->
-    Answer = Data#{
-        <<"tag">> => Tag
-    },
-    {ok, NewState} = reply_with_stdfields(Answer, State),
-    {noreply, NewState};
+%% agent API
 
-process_reply({error, _Reason, State}, _Req, nil) ->
-    Answer = #{
-        <<"result">> => <<"no response">>
-    },
-    {ok, NewState} = reply_with_stdfields(Answer, State),
-    {noreply, NewState};
-
-process_reply({error, _Reason, State}, _Req, Tag) ->
-    Answer = #{
-        <<"result">> => <<"no response">>,
-        <<"tag">> => Tag
-    },
-    {ok, NewState} = reply_with_stdfields(Answer, State),
-    {noreply, NewState}.
-
-%% move to specific agent implementation
+%% private
 process_json_req(_Error, <<"registered">>, _Method, _Req, State) ->
     Answer = #{
         <<"result">> => <<"activated">>
@@ -257,8 +249,6 @@ process_json_req(_Error, _Result, <<"echo">>, Req, State) ->
 process_json_req(_Error, _Result, _Method, _Req, State) ->
     {error, nil, State}.
 
-%% agent API
-
 agent_name() -> <<"echodemo">>.
 agent_methods() -> [<<"echo">>].
 agent_auth_methods() -> [<<"echo">>].
@@ -269,12 +259,10 @@ agent_pub_methods() -> [<<"echo">>].
 agent_register(State, _Args) -> {ok, State, 0}.
 
 %% initialize from JSON object. process JSON, return JSON
-%agent_process_register(State, _Args) ->
-%    NewState = State#state{allowremote = 1},
-%    Answer = #{
-%        <<"result">> => <<"echodemo init">>
-%    },
-%    {ok, Answer, NewState}.
+agent_process_register(State, _Args) ->
+    NewState = State#state{allowremote = 1},
+    Answer = #{<<"result">> => <<"echodemo init">>},
+    {ok, Answer, NewState}.
 
 agent_idle(State) -> {ok, State}.
 agent_shutdown(State, _Reason) -> {ok, State}.
