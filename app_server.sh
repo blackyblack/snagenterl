@@ -9,4 +9,4 @@ erl -pa ./ebin \
 -boot start_sasl \
 -sname $MY_NODENAME \
 -noshell \
--run echodemo_app run $DIR $@
+-run snagent_app run $DIR $@

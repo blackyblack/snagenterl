@@ -12,7 +12,6 @@ init() ->
                       Path
               end,
     NifPath = string:join([PrivDir, "procutils"], "/"),
-    error_logger:info_msg("loading ~s~n", [NifPath]),
     ok = erlang:load_nif(NifPath, 0).
 
 os_get_ppid() ->

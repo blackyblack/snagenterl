@@ -1,4 +1,4 @@
--module(echodemo_app).
+-module(snagent_app).
 
 -behaviour(application).
 
@@ -10,10 +10,10 @@
 %% API
 
 start() ->
-  application:start(echodemo).
+  application:start(snagent).
 
 stop() ->
-  application:stop(echodemo).
+  application:stop(snagent).
 
 run() ->
   error_logger:info_msg("No args passed. Terminating.~n", []),
@@ -28,20 +28,17 @@ run([[]]) ->
   {error, noargs};
 
 run(Args) ->
-  application:set_env(echodemo, args, Args),
-  application:start(echodemo).
+  application:set_env(snagent, args, Args),
+  application:start(snagent).
 
   
 %% Application callbacks
 
 start(_StartType, _StartArgs) ->
-  error_logger:info_msg("Hello from echodemo.~n", []),
-  Args = application:get_env(echodemo, args, undefined),
+  Args = application:get_env(snagent, args, undefined),
   error_logger:info_msg("Args = ~p~n", [Args]),
   enm:start_link(),
-  Ret = echodemo_sup:start_link(),
-  error_logger:info_msg("start_link = ~p~n", [Ret]),
-  Ret.
+  snagent_sup:start_link().
 
 stop(_State) ->
   enm:stop(),

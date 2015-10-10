@@ -350,7 +350,6 @@ init([]) ->
                       Path
               end,
     Opts = [{driver_options, [kill_ports]}],
-    error_logger:info_msg("loading ~s~n", [PrivDir]),
     LoadResult = case erl_ddll:try_load(PrivDir, ?SHLIB, Opts) of
                      {ok, loaded} -> ok;
                      {ok, already_loaded} -> ok;

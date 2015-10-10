@@ -1,9 +1,9 @@
-{application, echodemo,
+{application, snagent,
  [
   {description, ""},
   {vsn, "1"},
   {modules, [
-             echodemo_app
+             snagent_app
             ]},
   {registered, []},
   {applications, [
@@ -11,6 +11,6 @@
                   stdlib,
                   sasl
                  ]},
-  {mod, {echodemo_app, []}},
+  {mod, {snagent_app, []}},
   {env, []}
  ]}.

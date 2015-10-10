@@ -1,4 +1,4 @@
--module(echodemo_sup).
+-module(snagent_sup).
 
 -behaviour(supervisor).
 
@@ -18,5 +18,5 @@ start_link() ->
 %% Supervisor callbacks
 
 init([]) ->
-  Ch1 = ?CHILD(echodemo_server, worker),
+  Ch1 = ?CHILD(snagent_server, worker),
   {ok, {{one_for_one, 10, 10}, [Ch1]}}.
